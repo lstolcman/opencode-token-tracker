@@ -407,7 +407,7 @@ describe("TokenTrackerPlugin", () => {
     assert.ok(body.includes("cache\u2193: 120,000"));
     assert.ok(body.includes("t: 3.2s"));
     assert.ok(body.includes("$0.0032"));
-    assert.ok(body.includes("session: $0.0032"));
+    assert.ok(!body.includes("session:"));
     assert.ok(body.includes("github-copilot/claude-sonnet-4.6"));
   });
 
@@ -467,7 +467,7 @@ describe("TokenTrackerPlugin", () => {
     assert.ok(!toastCalls[0].message.includes("finish:"));
   });
 
-  it("session.status busy resets counters", async () => {
+  it("shows only new message data after different requests (no accumulation)", async () => {
     client.session.messages = mock.fn(() =>
       Promise.resolve({
         data: [
@@ -479,13 +479,13 @@ describe("TokenTrackerPlugin", () => {
 
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.strictEqual(toastCalls.length, 1);
-    assert.ok(toastCalls[0].message.includes("session: $0.0010"));
+    assert.ok(toastCalls[0].message.includes("$0.0010"));
 
-    await dispatch(plugin, { type: "session.status", properties: { status: { type: "busy" }, sessionID: "s1" } });
-
+    // Simulate new request: messages API now returns a different message
     client.session.messages = mock.fn(() =>
       Promise.resolve({
         data: [
+          assistantMsg({ input: 100, output: 50, cost: 0.001, msgId: "m1" }),
           assistantMsg({ input: 200, output: 100, cost: 0.002, msgId: "m2" }),
         ],
       })
@@ -494,10 +494,11 @@ describe("TokenTrackerPlugin", () => {
 
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.strictEqual(toastCalls.length, 1);
-    assert.ok(toastCalls[0].message.includes("session: $0.0020"));
+    // Only shows cost for the NEW message (m2), not accumulated
+    assert.ok(toastCalls[0].message.includes("$0.0020"));
   });
 
-  it("deduplicates cost accumulation by msgId across events", async () => {
+  it("deduplicates by msgId — same message on second idle produces no toast", async () => {
     client.session.messages = mock.fn(() =>
       Promise.resolve({
         data: [
@@ -508,14 +509,15 @@ describe("TokenTrackerPlugin", () => {
     const plugin = await buildPlugin();
 
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.ok(toastCalls[0].message.includes("session: $0.0010"));
+    assert.ok(toastCalls[0].message.includes("$0.0010"));
 
+    toastCalls.length = 0;
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.strictEqual(toastCalls.length, 2);
-    assert.ok(toastCalls[1].message.includes("session: $0.0010"));
+    // Same message already seen — no new data, no toast
+    assert.strictEqual(toastCalls.length, 0);
   });
 
-  it("accumulates cost across different msgIds (deduplication)", async () => {
+  it("shows only new child messages, not accumulated from previous requests", async () => {
     client.session.children = mock.fn(() => Promise.resolve({ data: [{ id: "child-1" }] }));
     client.session.messages = mock.fn(({ path }) => {
       if (path.id === "s1") {
@@ -530,12 +532,11 @@ describe("TokenTrackerPlugin", () => {
 
     const plugin = await buildPlugin();
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.ok(toastCalls[0].message.includes("session: $0.0030"));
+    assert.ok(toastCalls[0].message.includes("$0.0030"));
 
-    // Second idle shows only the NEW child messages (not accumulated from previous requests)
+    // Second idle: all messages already seen — no toast
     toastCalls.length = 0;
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    // No new child messages, so no cost displayed
     assert.strictEqual(toastCalls.length, 0);
   });
 
@@ -583,7 +584,8 @@ describe("TokenTrackerPlugin", () => {
     assert.ok(body.includes("in: 6,000"));
     assert.ok(body.includes("out: 3,000"));
     assert.ok(body.includes("[+1 subagents]"));
-    assert.ok(body.includes("session: $0.0060"));
+    assert.ok(body.includes("$0.0060"));
+    assert.ok(!body.includes("session:"));
     assert.ok(body.includes("reqs: 3"));
   });
 
@@ -613,7 +615,7 @@ describe("TokenTrackerPlugin", () => {
     const plugin = await buildPlugin();
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.ok(toastCalls[0].message.includes("[+2 subagents]"));
-    assert.ok(toastCalls[0].message.includes("session: $0.0060"));
+    assert.ok(toastCalls[0].message.includes("$0.0060"));
 
     toastCalls.length = 0;
     client.session.children = mock.fn(() =>
@@ -631,7 +633,7 @@ describe("TokenTrackerPlugin", () => {
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.ok(toastCalls[0].message.includes("[+1 subagents]"));
     // Shows only the new child cost (not accumulated from previous requests)
-    assert.ok(toastCalls[0].message.includes("session: $0.0040"));
+    assert.ok(toastCalls[0].message.includes("$0.0040"));
   });
 
   it("handles child with id in info.id field", async () => {
@@ -734,7 +736,7 @@ describe("TokenTrackerPlugin", () => {
     assert.ok(body.includes("[+1 subagents]"));
   });
 
-  it("multiple main agent idle events accumulate child costs correctly", async () => {
+  it("multiple main agent idle events show only new data (no accumulation)", async () => {
     client.session.children = mock.fn(() =>
       Promise.resolve({ data: [{ id: "child-1" }] })
     );
@@ -751,12 +753,11 @@ describe("TokenTrackerPlugin", () => {
 
     const plugin = await buildPlugin();
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.ok(toastCalls[0].message.includes("session: $0.0015"));
+    assert.ok(toastCalls[0].message.includes("$0.0015"));
 
-    // Second idle shows only NEW messages (no new messages, so no cost)
+    // Second idle: all messages already seen — no toast
     toastCalls.length = 0;
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    // No new child messages, so no toast displayed
     assert.strictEqual(toastCalls.length, 0);
   });
 
@@ -810,7 +811,7 @@ describe("TokenTrackerPlugin", () => {
     assert.ok(body.includes("[+1 subagents]"));
   });
 
-  it("processedChildren is cleared on session.status busy", async () => {
+  it("processedChildren persists — old children are not re-counted", async () => {
     client.session.children = mock.fn(() =>
       Promise.resolve({ data: [{ id: "child-1" }] })
     );
@@ -820,15 +821,24 @@ describe("TokenTrackerPlugin", () => {
           data: [assistantMsg({ input: 1000, output: 500, cost: 0.001, msgId: "p1" })],
         });
       }
-      return Promise.resolve({
-        data: [assistantMsg({ input: 500, output: 250, cost: 0.0005, msgId: "c1" })],
-      });
+      if (path.id === "child-1") {
+        return Promise.resolve({
+          data: [assistantMsg({ input: 500, output: 250, cost: 0.0005, msgId: "c1" })],
+        });
+      }
+      if (path.id === "child-2") {
+        return Promise.resolve({
+          data: [assistantMsg({ input: 600, output: 300, cost: 0.0006, msgId: "c2" })],
+        });
+      }
+      return Promise.resolve({ data: [] });
     });
 
     const plugin = await buildPlugin();
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.ok(toastCalls[0].message.includes("[+1 subagents]"));
 
+    // session.busy does NOT clear processedChildren
     await dispatch(plugin, {
       type: "session.status",
       properties: { status: { type: "busy" }, sessionID: "s1" },
@@ -840,6 +850,7 @@ describe("TokenTrackerPlugin", () => {
     );
 
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.ok(toastCalls[0].message.includes("[+2 subagents]"));
+    // Only child-2 is new (child-1 already processed)
+    assert.ok(toastCalls[0].message.includes("[+1 subagents]"));
   });
 });
