@@ -65,12 +65,25 @@ A fenced code block showing a realistic toast line:
 ```
 
 ### 4. Installation
-Step-by-step:
-1. Clone or download `token-tracker.js`
-2. Place it in your OpenCode plugins directory (or any local path)
-3. Register it in `opencode.json` under `plugins`
 
-Include the exact JSON snippet for `opencode.json`.
+Two options — no `opencode.json` edit required for local installs:
+
+**Option A — Global (all projects)**
+Copy `token-tracker.js` to `~/.config/opencode/plugins/`
+
+**Option B — Project-only**
+Copy `token-tracker.js` to `.opencode/plugins/` inside the project directory
+
+Files in these directories are auto-loaded at OpenCode startup. No further configuration needed.
+
+**Option C — via npm (if published)**
+Add to `opencode.json`:
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "plugin": ["opencode-token-tracker"]
+}
+```
 
 ### 5. Configuration
 None required. The plugin works out-of-the-box with zero configuration.
