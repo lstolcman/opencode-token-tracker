@@ -1,5 +1,7 @@
 # opencode-token-tracker
 
+[![CI](https://github.com/eserete/opencode-token-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/eserete/opencode-token-tracker/actions/workflows/ci.yml)
+
 Real-time token usage, cost, and latency tracking for every AI request in [OpenCode](https://opencode.ai).
 
 ---
@@ -39,7 +41,7 @@ With subagents:
 
 Copy the plugin file to your OpenCode plugins directory — it loads automatically at startup.
 
-**Global install** (available in all projects):
+**Global install** (available in all projects, recommended):
 
 ```bash
 cp token-tracker.js ~/.config/opencode/plugins/
@@ -54,12 +56,13 @@ cp token-tracker.js .opencode/plugins/
 
 That's it. Restart OpenCode and the plugin is active.
 
-> **Future:** If/when this package is published to npm, you can also install it via `opencode.json`:
-> ```json
-> {
->   "$schema": "https://opencode.ai/config.json",
->   "plugin": ["opencode-token-tracker"]
-> }
+> **npm install** (recommended — stays up to date):
+> ```bash
+> npm install opencode-token-tracker
+> ```
+> Then move the installed file to your OpenCode plugins directory:
+> ```bash
+> cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
 > ```
 
 ---
@@ -102,7 +105,7 @@ None required. The plugin works out-of-the-box with zero configuration.
 
 - For simple sessions (no subagents), only the last assistant message is shown per response — intermediate tool-call costs are not broken out individually
 - Cost accuracy depends on the provider reporting token counts correctly to OpenCode
-- Toast persists for 6 seconds then disappears — there is no persistent log or export
+- Toast persists for 10 seconds then disappears — there is no persistent log or export
 - No across-session cumulative tracking — resets when a new prompt starts
 
 ---
