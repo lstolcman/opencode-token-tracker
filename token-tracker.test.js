@@ -532,9 +532,11 @@ describe("TokenTrackerPlugin", () => {
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.ok(toastCalls[0].message.includes("session: $0.0030"));
 
+    // Second idle shows only the NEW child messages (not accumulated from previous requests)
     toastCalls.length = 0;
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.ok(toastCalls[0].message.includes("session: $0.0030"));
+    // No new child messages, so no cost displayed
+    assert.strictEqual(toastCalls.length, 0);
   });
 
   it("increments premium request count when input tokens > 0", async () => {
@@ -628,7 +630,8 @@ describe("TokenTrackerPlugin", () => {
 
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.ok(toastCalls[0].message.includes("[+1 subagents]"));
-    assert.ok(toastCalls[0].message.includes("session: $0.0100"));
+    // Shows only the new child cost (not accumulated from previous requests)
+    assert.ok(toastCalls[0].message.includes("session: $0.0040"));
   });
 
   it("handles child with id in info.id field", async () => {
@@ -750,10 +753,11 @@ describe("TokenTrackerPlugin", () => {
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.ok(toastCalls[0].message.includes("session: $0.0015"));
 
+    // Second idle shows only NEW messages (no new messages, so no cost)
     toastCalls.length = 0;
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
-    assert.strictEqual(toastCalls.length, 1);
-    assert.ok(toastCalls[0].message.includes("session: $0.0015"));
+    // No new child messages, so no toast displayed
+    assert.strictEqual(toastCalls.length, 0);
   });
 
   it("omits finish reason when finish is undefined", async () => {

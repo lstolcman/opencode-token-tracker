@@ -223,15 +223,14 @@ export const TokenTrackerPlugin = async ({ client }) => {
           }
         }
 
-        // Accumulate session cost
-        const prevCost = sessionCost.get(sessionID) || 0
-        const sessionTotal = prevCost + newCostDelta
-        if (newCostDelta > 0) sessionCost.set(sessionID, sessionTotal)
+        // Use only current request cost (not accumulated from previous requests)
+        const sessionTotal = newCostDelta
+        const premiumCount = newReqsDelta
 
-        // Premium request count (deduplicated)
-        const prev = premiumRequestsPerSession.get(sessionID) || 0
-        const premiumCount = prev + newReqsDelta
-        premiumRequestsPerSession.set(sessionID, premiumCount)
+        // Skip toast if no new data (no new children and parent message already seen)
+        if (newChildren.length === 0 && allChildMessages.length === 0) {
+          return
+        }
 
         const totalInp = allData.reduce((s, d) => s + d.inp, 0)
         const totalOut = allData.reduce((s, d) => s + d.out, 0)
