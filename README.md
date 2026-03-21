@@ -41,7 +41,20 @@ With subagents:
 
 Copy `token-tracker.js` to your OpenCode plugins directory — it loads automatically at startup.
 
-**npm** (recommended — stays up to date):
+**OpenCode prompt** (recommended — just ask OpenCode):
+
+```
+/install https://github.com/eserete/opencode-token-tracker
+```
+
+OpenCode will clone the repo and place the plugin in your plugins directory automatically.
+
+**npm**:
+
+```bash
+npm install opencode-token-tracker
+cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
+```
 
 ```bash
 npm install opencode-token-tracker
