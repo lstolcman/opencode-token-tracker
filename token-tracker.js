@@ -174,7 +174,7 @@ export const TokenTrackerPlugin = async ({ client }) => {
           }
 
           await client.tui.showToast({
-            body: { message: `[tokens] ${parts.join("  |  ")}`, variant: "success", duration: 6_000 },
+            body: { message: `[tokens] ${parts.join("  |  ")}`, variant: "success", duration: 10000 },
           })
           return
         }
@@ -257,7 +257,7 @@ export const TokenTrackerPlugin = async ({ client }) => {
         if (newChildren.length > 0) parts.push(`[+${newChildren.length} subagents]`)
 
         await client.tui.showToast({
-          body: { message: `[tokens] ${parts.join("  |  ")}`, variant: "success", duration: 300_000 },
+          body: { message: `[tokens] ${parts.join("  |  ")}`, variant: "success", duration: 10000 },
         })
       } catch (_err) {
         // Silently ignore errors to avoid disrupting the session
