@@ -1,0 +1,12 @@
+{
+  "name": "opencode-token-tracker",
+  "version": "1.0.0",
+  "description": "Real-time token usage, cost, and latency tracking for OpenCode",
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "test:watch": "node --test --watch"
+  },
+  "keywords": ["opencode", "plugin", "tokens", "cost-tracking"],
+  "license": "MIT"
+}

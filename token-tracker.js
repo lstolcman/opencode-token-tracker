@@ -16,7 +16,7 @@
  */
 
 /** Returns data for only the LAST assistant message with tokens in a session. */
-async function collectTokensFromSession(client, sessionID) {
+export async function collectTokensFromSession(client, sessionID) {
   const response = await client.session.messages({ path: { id: sessionID } })
   const messages = response?.data ?? response ?? []
   if (!Array.isArray(messages) || messages.length === 0) return null
@@ -61,7 +61,7 @@ async function collectTokensFromSession(client, sessionID) {
  * tokens in a session.  Used for child (subagent) sessions so that every
  * individual request made by the subagent is counted, not just the last one.
  */
-async function collectAllMessagesFromSession(client, sessionID) {
+export async function collectAllMessagesFromSession(client, sessionID) {
   const response = await client.session.messages({ path: { id: sessionID } })
   const messages = response?.data ?? response ?? []
   if (!Array.isArray(messages) || messages.length === 0) return []
