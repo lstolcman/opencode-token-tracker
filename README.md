@@ -41,13 +41,12 @@ With subagents:
 
 Copy `token-tracker.js` to your OpenCode plugins directory — it loads automatically at startup.
 
-**OpenCode prompt** (recommended — just ask OpenCode):
+**Global install** (manual):
 
+```bash
+curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.js \
+  -o ~/.config/opencode/plugins/token-tracker.js
 ```
-Install for me https://github.com/eserete/opencode-token-tracker
-```
-
-OpenCode will clone the repo and place the plugin in your plugins directory automatically.
 
 **npm**:
 
@@ -61,13 +60,6 @@ npm install opencode-token-tracker
 cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
 ```
 
-**Global install** (manual):
-
-```bash
-curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.js \
-  -o ~/.config/opencode/plugins/token-tracker.js
-```
-
 **Project-only install**:
 
 ```bash
@@ -75,7 +67,7 @@ mkdir -p .opencode/plugins
 cp token-tracker.js .opencode/plugins/
 ```
 
-Restart OpenCode and the plugin is active.
+Restart OpenCode, and the plugin is active.
 
 ---
 
@@ -106,7 +98,7 @@ None required. The plugin works out-of-the-box with zero configuration.
 
 ## Pros
 
-- **Zero config** — drop the file in and it works
+- **Zero config** — drop the file in, and it works
 - **Subagent-aware** — automatically aggregates tokens from all child sessions spawned by the Task tool
 - **Deduplication** — tracks message IDs to prevent double-counting costs across events
 - **Non-intrusive** — all errors are silently swallowed; the plugin never disrupts your session
