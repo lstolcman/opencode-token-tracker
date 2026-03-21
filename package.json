@@ -1,12 +1,21 @@
 {
   "name": "opencode-token-tracker",
   "version": "1.0.0",
-  "description": "Real-time token usage, cost, and latency tracking for OpenCode",
+  "description": "Real-time token usage, cost, and latency tracking for every AI request in OpenCode",
   "type": "module",
+  "main": "token-tracker.js",
+  "files": ["token-tracker.js", "README.md"],
   "scripts": {
     "test": "node --test",
     "test:watch": "node --test --watch"
   },
   "keywords": ["opencode", "plugin", "tokens", "cost-tracking"],
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eserete/opencode-token-tracker.git"
+  },
+  "engines": {
+    "node": ">=18"
+  }
 }

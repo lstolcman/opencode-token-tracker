@@ -204,6 +204,14 @@ describe("collectTokensFromSession", () => {
     const result = await collectTokensFromSession(client, "s1");
     assert.strictEqual(result, null);
   });
+
+  it("returns null for finish when field is missing", async () => {
+    const msg = assistantMsg({ input: 100, output: 50, msgId: "m1" });
+    delete msg.info.finish;
+    const client = mockClient([msg]);
+    const result = await collectTokensFromSession(client, "s1");
+    assert.strictEqual(result.finish, undefined);
+  });
 });
 
 describe("collectAllMessagesFromSession", () => {
@@ -746,5 +754,88 @@ describe("TokenTrackerPlugin", () => {
     await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
     assert.strictEqual(toastCalls.length, 1);
     assert.ok(toastCalls[0].message.includes("session: $0.0015"));
+  });
+
+  it("omits finish reason when finish is undefined", async () => {
+    client.session.messages = mock.fn(() =>
+      Promise.resolve({
+        data: [
+          assistantMsg({ input: 100, output: 50, msgId: "m1" }),
+        ],
+      })
+    );
+    const plugin = await buildPlugin();
+    await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
+    assert.strictEqual(toastCalls.length, 1);
+    assert.ok(!toastCalls[0].message.includes("finish:"));
+  });
+
+  it("shows cacheWrite in toast when present", async () => {
+    client.session.messages = mock.fn(() =>
+      Promise.resolve({
+        data: [
+          assistantMsg({ input: 100, output: 50, cacheWrite: 3000, msgId: "m1" }),
+        ],
+      })
+    );
+    const plugin = await buildPlugin();
+    await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
+    assert.strictEqual(toastCalls.length, 1);
+    assert.ok(toastCalls[0].message.includes("cache\u2191: 3,000"));
+  });
+
+  it("parent with tokens and empty children shows parent tokens", async () => {
+    client.session.children = mock.fn(() =>
+      Promise.resolve({ data: [{ id: "empty-child" }] })
+    );
+    client.session.messages = mock.fn(({ path }) => {
+      if (path.id === "s1") {
+        return Promise.resolve({
+          data: [assistantMsg({ input: 1000, output: 500, cost: 0.001, msgId: "p1" })],
+        });
+      }
+      return Promise.resolve({ data: [] });
+    });
+
+    const plugin = await buildPlugin();
+    await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
+    assert.strictEqual(toastCalls.length, 1);
+    const body = toastCalls[0].message;
+    assert.ok(body.includes("in: 1,000"));
+    assert.ok(body.includes("out: 500"));
+    assert.ok(body.includes("[+1 subagents]"));
+  });
+
+  it("processedChildren is cleared on session.status busy", async () => {
+    client.session.children = mock.fn(() =>
+      Promise.resolve({ data: [{ id: "child-1" }] })
+    );
+    client.session.messages = mock.fn(({ path }) => {
+      if (path.id === "s1") {
+        return Promise.resolve({
+          data: [assistantMsg({ input: 1000, output: 500, cost: 0.001, msgId: "p1" })],
+        });
+      }
+      return Promise.resolve({
+        data: [assistantMsg({ input: 500, output: 250, cost: 0.0005, msgId: "c1" })],
+      });
+    });
+
+    const plugin = await buildPlugin();
+    await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
+    assert.ok(toastCalls[0].message.includes("[+1 subagents]"));
+
+    await dispatch(plugin, {
+      type: "session.status",
+      properties: { status: { type: "busy" }, sessionID: "s1" },
+    });
+
+    toastCalls.length = 0;
+    client.session.children = mock.fn(() =>
+      Promise.resolve({ data: [{ id: "child-1" }, { id: "child-2" }] })
+    );
+
+    await dispatch(plugin, { type: "session.idle", properties: { sessionID: "s1" } });
+    assert.ok(toastCalls[0].message.includes("[+2 subagents]"));
   });
 });

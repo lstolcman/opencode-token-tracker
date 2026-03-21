@@ -39,12 +39,20 @@ With subagents:
 
 ## Installation
 
-Copy the plugin file to your OpenCode plugins directory — it loads automatically at startup.
+Copy `token-tracker.js` to your OpenCode plugins directory — it loads automatically at startup.
 
-**Global install** (available in all projects, recommended):
+**npm** (recommended — stays up to date):
 
 ```bash
-cp token-tracker.js ~/.config/opencode/plugins/
+npm install opencode-token-tracker
+cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
+```
+
+**Global install** (manual):
+
+```bash
+curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.js \
+  -o ~/.config/opencode/plugins/token-tracker.js
 ```
 
 **Project-only install**:
@@ -54,16 +62,7 @@ mkdir -p .opencode/plugins
 cp token-tracker.js .opencode/plugins/
 ```
 
-That's it. Restart OpenCode and the plugin is active.
-
-> **npm install** (recommended — stays up to date):
-> ```bash
-> npm install opencode-token-tracker
-> ```
-> Then move the installed file to your OpenCode plugins directory:
-> ```bash
-> cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
-> ```
+Restart OpenCode and the plugin is active.
 
 ---
 
@@ -86,7 +85,7 @@ None required. The plugin works out-of-the-box with zero configuration.
 | `$` | Cost for this message |
 | `session` | Cumulative cost since the session started |
 | model | Provider/model identifier (e.g. `github-copilot/claude-sonnet-4.6`) |
-| `reqs` | Number of premium requests made in this session |
+| `reqs` | Number of requests with non-zero input tokens in this session |
 | `finish` | Finish reason — only shown when not `end_turn` or `tool_calls` |
 | `[+N subagents]` | Number of child (subagent) sessions aggregated into this toast |
 

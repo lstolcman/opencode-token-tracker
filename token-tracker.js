@@ -110,11 +110,13 @@ export const TokenTrackerPlugin = async ({ client }) => {
         const sid = event.properties?.sessionID
         if (sid) {
           sessionCost.set(sid, 0)
-          premiumRequestsPerSession.set(sid, 0)
+          premiumRequestsPerSession.delete(sid)
+          processedChildren.delete(sid)
           if (sessionCost._seen) {
-            const prefix = `${sid}:`
             for (const key of [...sessionCost._seen]) {
-              if (key.startsWith(prefix)) sessionCost._seen.delete(key)
+              if (key.startsWith(`${sid}:`) || key.startsWith(`${sid}:agg:`)) {
+                sessionCost._seen.delete(key)
+              }
             }
           }
           // Don't clear the toast proactively — let it persist until the
