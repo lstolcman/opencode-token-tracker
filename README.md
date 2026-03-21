@@ -48,29 +48,6 @@ curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracke
   -o ~/.config/opencode/plugins/token-tracker.js
 ```
 
-**npm**:
-
-```bash
-npm install opencode-token-tracker
-cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
-```
-
-```bash
-npm install opencode-token-tracker
-cp node_modules/opencode-token-tracker/token-tracker.js ~/.config/opencode/plugins/
-```
-
-**Project-only install**:
-
-```bash
-mkdir -p .opencode/plugins
-cp token-tracker.js .opencode/plugins/
-```
-
-Restart OpenCode, and the plugin is active.
-
----
-
 ## Configuration
 
 None required. The plugin works out-of-the-box with zero configuration.
@@ -105,12 +82,11 @@ None required. The plugin works out-of-the-box with zero configuration.
 - **Reasoning tokens** — shows `think:` when the model uses extended thinking (e.g. Claude with extended thinking enabled)
 - **Session reset** — counters reset on each new prompt, so `session:` always reflects the current conversation
 
-## Cons
+## Limitations
 
-- For simple sessions (no subagents), only the last assistant message is shown per response — intermediate tool-call costs are not broken out individually
 - Cost accuracy depends on the provider reporting token counts correctly to OpenCode
-- Toast persists for 10 seconds then disappears — there is no persistent log or export
 - No across-session cumulative tracking — resets when a new prompt starts
+- Toast lives for 10 seconds, not configurable yet
 
 ---
 
