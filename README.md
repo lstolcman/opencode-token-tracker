@@ -44,7 +44,7 @@ Copy `token-tracker.js` to your OpenCode plugins directory — it loads automati
 **OpenCode prompt** (recommended — just ask OpenCode):
 
 ```
-/install https://github.com/eserete/opencode-token-tracker
+Install for me https://github.com/eserete/opencode-token-tracker
 ```
 
 OpenCode will clone the repo and place the plugin in your plugins directory automatically.
