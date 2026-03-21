@@ -102,7 +102,7 @@ None required. The plugin works out-of-the-box with zero configuration.
 
 - For simple sessions (no subagents), only the last assistant message is shown per response — intermediate tool-call costs are not broken out individually
 - Cost accuracy depends on the provider reporting token counts correctly to OpenCode
-- Toast persists for 5 minutes then disappears — there is no persistent log or export
+- Toast persists for 6 seconds then disappears — there is no persistent log or export
 - No across-session cumulative tracking — resets when a new prompt starts
 
 ---

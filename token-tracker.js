@@ -174,7 +174,7 @@ export const TokenTrackerPlugin = async ({ client }) => {
           }
 
           await client.tui.showToast({
-            body: { message: `[tokens] ${parts.join("  |  ")}`, variant: "success", duration: 300_000 },
+            body: { message: `[tokens] ${parts.join("  |  ")}`, variant: "success", duration: 6_000 },
           })
           return
         }
