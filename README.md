@@ -2,94 +2,154 @@
 
 [![CI](https://github.com/eserete/opencode-token-tracker/actions/workflows/ci.yml/badge.svg)](https://github.com/eserete/opencode-token-tracker/actions/workflows/ci.yml)
 
-Real-time token usage, cost, and latency tracking for every AI request in [OpenCode](https://opencode.ai).
+Real-time token usage, cost, and request tracking for every AI request in [OpenCode](https://opencode.ai).
 
 ---
 
-## What it does
+## 🆕 Versão TUI (RECOMENDADA) - `token-tracker.tsx`
 
-The plugin listens to `session.idle` events and reads the last assistant message's token data to display a toast notification in the OpenCode TUI after each AI response. It reports:
+Mostra tokens **diretamente no rodapé da sidebar** do OpenCode, em tempo real durante a execução do agente — **sem popups ou toasts**.
 
-- Input and output token counts
-- Reasoning tokens (when the model uses extended thinking)
-- Cache read/write tokens (if your provider uses prompt caching)
-- Response latency
-- Per-message cost and cumulative session cost
-- Model identifier
-- Number of premium requests made in the session
-- Finish reason (only shown when it's not a normal `end_turn`)
+```
+⏳ last:  in: 70.0k · out: 1.2k · 1 req · $0.04
+📊 total: in: 1.2m  · out: 0.3m · 42 reqs · $1.23
+```
 
-When the main agent spawns subagents (e.g. via the Task tool), all child session tokens are automatically aggregated into a single consolidated toast labeled `[+N subagents]`.
+Após o agente terminar:
+
+```
+✓  last:  in: 70.0k · out: 1.2k · 1 req · $0.04
+📊 total: in: 1.2m  · out: 0.3m · 42 reqs · $1.23
+```
+
+**Linhas:**
+- `⏳`/`✓` **last** — tokens e custo do **último request** (útil para ver o custo de cada interação)
+- `📊` **total** — acumulado de **toda a sessão** (tokens in, out, número de requests e custo total)
+
+**Atualização:** a cada 2 segundos durante execução.
+
+### Instalação
+
+**1. Copie o plugin:**
+
+```bash
+curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.tsx \
+  -o ~/.config/opencode/plugins/token-tracker.tsx
+```
+
+**2. Registre no `tui.json`** (`~/.config/opencode/tui.json`):
+
+```json
+{
+  "$schema": "https://opencode.ai/config/tui.json",
+  "plugin": ["./plugins/token-tracker.tsx"]
+}
+```
+
+**3. Reinicie o OpenCode** e abra a sidebar com `Ctrl+X B`.
+
+### Requisitos
+
+- OpenCode v1.4.3+
+- Sidebar aberta (`Ctrl+X B`) para o footer aparecer
 
 ---
 
-## Example output
+## Versão Real-time Toast - `token-tracker-realtime.js`
+
+Mostra tokens em tempo real em um toast durante a execução do agente:
 
 ```
-[tokens] in: 45,231  |  out: 1,204  |  cache↓: 120,000  |  t: 4.2s  |  $0.0032  |  session: $0.0187  |  github-copilot/claude-sonnet-4.6  |  reqs: 3
+⏳ 1.2k tokens · 12 reqs · $0.05
 ```
 
-With subagents:
+**Instalação:**
 
-```
-[tokens] in: 98,540  |  out: 3,812  |  cache↓: 240,000  |  t: 18.6s  |  $0.0091  |  session: $0.0278  |  github-copilot/claude-sonnet-4.6  |  reqs: 7  |  [+2 subagents]
+```bash
+curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker-realtime.js \
+  -o ~/.config/opencode/plugins/token-tracker-realtime.js
 ```
 
 ---
 
-## Installation
+## Versão Clássica (Toast) - `token-tracker.js`
 
-Copy `token-tracker.js` to your OpenCode plugins directory — it loads automatically at startup.
+Mostra um toast **após** cada request completar:
 
-**Global install** (manual):
+```
+[tokens] in: 45,231  |  out: 1,204  |  cache↓: 120,000  |  t: 4.2s  |  $0.0032  |  reqs: 3
+```
+
+**Instalação:**
 
 ```bash
 curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.js \
   -o ~/.config/opencode/plugins/token-tracker.js
 ```
 
-## Configuration
+---
 
-None required. The plugin works out-of-the-box with zero configuration.
+## Qual versão usar?
+
+| Feature | TUI Slot (tsx) | Real-time Toast | Clássica |
+|---------|---------------|----------------|----------|
+| **Interface** | Sidebar footer | Toast/popup | Toast/popup |
+| **Quando mostra** | Sempre visível | Durante execução | Após completar |
+| **Last vs Total** | ✅ Ambos | ❌ Apenas total | ✅ Por request |
+| **Compatibilidade** | OpenCode v1.4.3+ | Todas as versões | Todas as versões |
+| **Update** | A cada 2s | A cada 2s | Uma vez |
+
+**Recomendação:** Use **`token-tracker.tsx`** (TUI) — é a mais completa e não atrapalha o fluxo de trabalho.
 
 ---
 
-## Field reference
+## Configuração
 
-| Field | Description |
+Nenhuma configuração adicional necessária além da instalação descrita acima.
+
+**Importante:** Após instalar ou atualizar, **reinicie o OpenCode** para o plugin ser recarregado.
+
+---
+
+## Referência de Campos (Versão Clássica)
+
+| Campo | Descrição |
 |---|---|
-| `in` | Input tokens sent to the model |
-| `out` | Output tokens generated |
-| `think` | Reasoning tokens (extended thinking, if any) |
-| `cache↓` | Cache read tokens (if any) |
-| `cache↑` | Cache write tokens (if any) |
-| `t` | Response latency in seconds |
-| `$` | Cost for this message |
-| `session` | Cumulative cost since the session started |
-| model | Provider/model identifier (e.g. `github-copilot/claude-sonnet-4.6`) |
-| `reqs` | Number of requests with non-zero input tokens in this session |
-| `finish` | Finish reason — only shown when not `end_turn` or `tool_calls` |
-| `[+N subagents]` | Number of child (subagent) sessions aggregated into this toast |
+| `in` | Tokens de entrada |
+| `out` | Tokens de saída |
+| `think` | Tokens de raciocínio |
+| `cache↓` | Tokens de cache lidos |
+| `cache↑` | Tokens de cache escritos |
+| `t` | Latência em segundos |
+| `$` | Custo da mensagem |
+| `session` | Custo acumulado da sessão |
+| model | Provedor/modelo |
+| `reqs` | Número de requests |
+| `finish` | Razão de término |
+| `[+N subagents]` | Subagentes agregados |
 
 ---
 
-## Pros
+## Vantagens
 
-- **Zero config** — drop the file in, and it works
-- **Subagent-aware** — automatically aggregates tokens from all child sessions spawned by the Task tool
-- **Deduplication** — tracks message IDs to prevent double-counting costs across events
-- **Non-intrusive** — all errors are silently swallowed; the plugin never disrupts your session
-- **Reasoning tokens** — shows `think:` when the model uses extended thinking (e.g. Claude with extended thinking enabled)
-- **Session reset** — counters reset on each new prompt, so `session:` always reflects the current conversation
-
-## Limitations
-
-- Cost accuracy depends on the provider reporting token counts correctly to OpenCode
-- No across-session cumulative tracking — resets when a new prompt starts
-- Toast lives for 10 seconds, not configurable yet
+- ✅ **Zero configuração** - copie e funcione
+- ✅ **Sem popups** - exibição integrada na UI do OpenCode
+- ✅ **Last vs Total** - veja o custo de cada interação separado do acumulado
+- ✅ **Consciente de subagentes** - agrega tokens automaticamente
+- ✅ **Não intrusivo** - erros são silenciosos
+- ✅ **Tempo real** - acompanhe o uso enquanto o agente trabalha
 
 ---
 
-## License
+## Limitações
+
+- Precisão do custo depende do provedor reportar corretamente
+- Sem persistência entre sessões
+- Versão TUI requer sidebar aberta para o footer aparecer
+- Atualiza a cada 2 segundos (não instantâneo)
+
+---
+
+## Licença
 
 MIT

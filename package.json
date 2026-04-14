@@ -4,7 +4,8 @@
   "description": "Real-time token usage, cost, and latency tracking for every AI request in OpenCode",
   "type": "module",
   "main": "token-tracker.js",
-  "files": ["token-tracker.js", "README.md"],
+  "files": ["token-tracker.js", "token-tracker-realtime.js", "token-tracker.tsx", "README.md"],
+
   "scripts": {
     "test": "node --test",
     "test:watch": "node --test --watch"
