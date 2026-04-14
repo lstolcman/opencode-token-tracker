@@ -6,38 +6,38 @@ Real-time token usage, cost, and request tracking for every AI request in [OpenC
 
 ---
 
-## 🆕 Versão TUI (RECOMENDADA) - `token-tracker.tsx`
+## 🆕 TUI Version (RECOMMENDED) - `token-tracker.tsx`
 
-Mostra tokens **diretamente no rodapé da sidebar** do OpenCode, em tempo real durante a execução do agente — **sem popups ou toasts**.
+Displays tokens **directly in the OpenCode sidebar footer**, in real-time during agent execution — **no popups or toasts**.
 
 ```
 ⏳ last:  in: 70.0k · out: 1.2k · 1 req · $0.04
 📊 total: in: 1.2m  · out: 0.3m · 42 reqs · $1.23
 ```
 
-Após o agente terminar:
+When the agent finishes:
 
 ```
 ✓  last:  in: 70.0k · out: 1.2k · 1 req · $0.04
 📊 total: in: 1.2m  · out: 0.3m · 42 reqs · $1.23
 ```
 
-**Linhas:**
-- `⏳`/`✓` **last** — tokens e custo do **último request** (útil para ver o custo de cada interação)
-- `📊` **total** — acumulado de **toda a sessão** (tokens in, out, número de requests e custo total)
+**Lines:**
+- `⏳`/`✓` **last** — tokens and cost of the **last request** (useful to see the cost of each individual interaction)
+- `📊` **total** — cumulative for the **entire session** (tokens in, out, request count, and total cost)
 
-**Atualização:** a cada 2 segundos durante execução.
+**Updates:** every 2 seconds during execution.
 
-### Instalação
+### Installation
 
-**1. Copie o plugin:**
+**1. Copy the plugin:**
 
 ```bash
 curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.tsx \
   -o ~/.config/opencode/plugins/token-tracker.tsx
 ```
 
-**2. Registre no `tui.json`** (`~/.config/opencode/tui.json`):
+**2. Register it in `tui.json`** (`~/.config/opencode/tui.json`):
 
 ```json
 {
@@ -46,24 +46,24 @@ curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracke
 }
 ```
 
-**3. Reinicie o OpenCode** e abra a sidebar com `Ctrl+X B`.
+**3. Restart OpenCode** and open the sidebar with `Ctrl+X B`.
 
-### Requisitos
+### Requirements
 
 - OpenCode v1.4.3+
-- Sidebar aberta (`Ctrl+X B`) para o footer aparecer
+- Sidebar must be open (`Ctrl+X B`) for the footer to be visible
 
 ---
 
-## Versão Real-time Toast - `token-tracker-realtime.js`
+## Real-time Toast Version - `token-tracker-realtime.js`
 
-Mostra tokens em tempo real em um toast durante a execução do agente:
+Shows tokens in real-time via a toast notification during agent execution:
 
 ```
 ⏳ 1.2k tokens · 12 reqs · $0.05
 ```
 
-**Instalação:**
+**Installation:**
 
 ```bash
 curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker-realtime.js \
@@ -72,15 +72,15 @@ curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracke
 
 ---
 
-## Versão Clássica (Toast) - `token-tracker.js`
+## Classic Version (Toast) - `token-tracker.js`
 
-Mostra um toast **após** cada request completar:
+Shows a toast **after** each request completes:
 
 ```
 [tokens] in: 45,231  |  out: 1,204  |  cache↓: 120,000  |  t: 4.2s  |  $0.0032  |  reqs: 3
 ```
 
-**Instalação:**
+**Installation:**
 
 ```bash
 curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.js \
@@ -89,67 +89,67 @@ curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracke
 
 ---
 
-## Qual versão usar?
+## Which version should I use?
 
-| Feature | TUI Slot (tsx) | Real-time Toast | Clássica |
-|---------|---------------|----------------|----------|
+| Feature | TUI Slot (tsx) | Real-time Toast | Classic |
+|---------|---------------|----------------|---------|
 | **Interface** | Sidebar footer | Toast/popup | Toast/popup |
-| **Quando mostra** | Sempre visível | Durante execução | Após completar |
-| **Last vs Total** | ✅ Ambos | ❌ Apenas total | ✅ Por request |
-| **Compatibilidade** | OpenCode v1.4.3+ | Todas as versões | Todas as versões |
-| **Update** | A cada 2s | A cada 2s | Uma vez |
+| **When it shows** | Always visible | During execution | After completion |
+| **Last vs Total** | ✅ Both | ❌ Total only | ✅ Per request |
+| **Compatibility** | OpenCode v1.4.3+ | All versions | All versions |
+| **Update frequency** | Every 2s | Every 2s | Once |
 
-**Recomendação:** Use **`token-tracker.tsx`** (TUI) — é a mais completa e não atrapalha o fluxo de trabalho.
-
----
-
-## Configuração
-
-Nenhuma configuração adicional necessária além da instalação descrita acima.
-
-**Importante:** Após instalar ou atualizar, **reinicie o OpenCode** para o plugin ser recarregado.
+**Recommendation:** Use **`token-tracker.tsx`** (TUI) — it's the most complete and doesn't interrupt your workflow.
 
 ---
 
-## Referência de Campos (Versão Clássica)
+## Configuration
 
-| Campo | Descrição |
+No additional configuration required beyond the installation steps above.
+
+**Important:** After installing or updating, **restart OpenCode** for the plugin to be reloaded.
+
+---
+
+## Field Reference (Classic Version)
+
+| Field | Description |
 |---|---|
-| `in` | Tokens de entrada |
-| `out` | Tokens de saída |
-| `think` | Tokens de raciocínio |
-| `cache↓` | Tokens de cache lidos |
-| `cache↑` | Tokens de cache escritos |
-| `t` | Latência em segundos |
-| `$` | Custo da mensagem |
-| `session` | Custo acumulado da sessão |
-| model | Provedor/modelo |
-| `reqs` | Número de requests |
-| `finish` | Razão de término |
-| `[+N subagents]` | Subagentes agregados |
+| `in` | Input tokens |
+| `out` | Output tokens |
+| `think` | Reasoning tokens |
+| `cache↓` | Cache read tokens |
+| `cache↑` | Cache write tokens |
+| `t` | Latency in seconds |
+| `$` | Message cost |
+| `session` | Cumulative session cost |
+| model | Provider/model |
+| `reqs` | Number of requests |
+| `finish` | Finish reason |
+| `[+N subagents]` | Aggregated subagents |
 
 ---
 
-## Vantagens
+## Features
 
-- ✅ **Zero configuração** - copie e funcione
-- ✅ **Sem popups** - exibição integrada na UI do OpenCode
-- ✅ **Last vs Total** - veja o custo de cada interação separado do acumulado
-- ✅ **Consciente de subagentes** - agrega tokens automaticamente
-- ✅ **Não intrusivo** - erros são silenciosos
-- ✅ **Tempo real** - acompanhe o uso enquanto o agente trabalha
-
----
-
-## Limitações
-
-- Precisão do custo depende do provedor reportar corretamente
-- Sem persistência entre sessões
-- Versão TUI requer sidebar aberta para o footer aparecer
-- Atualiza a cada 2 segundos (não instantâneo)
+- ✅ **Zero configuration** - copy and it works
+- ✅ **No popups** - integrated display in the OpenCode UI
+- ✅ **Last vs Total** - see the cost of each interaction separately from the session total
+- ✅ **Subagent-aware** - aggregates tokens automatically
+- ✅ **Non-intrusive** - errors are silent
+- ✅ **Real-time** - track usage while the agent works
 
 ---
 
-## Licença
+## Limitations
+
+- Cost accuracy depends on the provider reporting correctly
+- No persistence across sessions
+- TUI version requires the sidebar to be open for the footer to appear
+- Updates every 2 seconds (not instantaneous)
+
+---
+
+## License
 
 MIT
