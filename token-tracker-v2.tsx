@@ -16,15 +16,22 @@
  * the last request, the current cache epoch, and the whole session:
  *
  *                  last   epoch   session
- *   ↑ sent        70.0k     1.2M     3.4M
- *   ↓ recv         1.2k     0.3M     0.9M
- *   uncached        2.1k    39.8k     1.2M
+ *   input           2.1k    39.8k     1.2M
+ *   output          1.2k     0.3M     0.9M
  *   cache read      50k     800k     2.1M
  *   cache hit     42.3%    66.7%    61.7%
  *   miss/reqs        —       1/9     2/12
  *   cost           4.0¢    $0.09    $0.37
+ *   ↑ sent        70.0k     1.2M     3.4M
  *   ttft           2.1s     2.0s     2.0s
  *   tok/s            58       55       55
+ *
+ * Rows are grouped by meaning: the priced buckets the provider reports
+ * (input, output, cache read), the cache outcome derived from them
+ * (cache hit, miss/reqs), the billed cost, the overall sent total, then
+ * latency. ↑ sent is a quantity, not a price bucket — it is the sum of
+ * the input-side rows — so it sits below the priced block instead of
+ * above it.
  *
  * A `cache write` row appears only when cache was written.
  *
@@ -41,11 +48,14 @@
  * seen since the plugin started (or since a reset) it equals the session
  * column.
  *
- * Arrows are billing-side from your perspective:
- *   ↑ sent = fresh input + cache read + cache write
- *   ↓ recv = output + reasoning
- * Cached tokens count under ↑ sent (billed input-side) even though they
- * are never re-transmitted; the cache rows are the composition detail.
+ * Rows follow the provider's price sheet: input = prompt tokens billed at
+ * the input rate (fresh, not served from cache), output = output +
+ * reasoning (both billed at the output rate), cache read = prompt tokens
+ * served from the provider's cache. cache write is a token count: some
+ * providers bill it, others do not, and the cost row already reflects
+ * whichever applies. ↑ sent is the quantity total — input + cache read +
+ * cache write, every billed input-side token, cached or not — so it is a
+ * total, never a rate.
  *
  * miss/reqs n/m = cache misses over billed top-level requests: completed
  * assistant messages that reported usage (fresh input or cache read). A
@@ -60,10 +70,10 @@
  * / EXPIRED (a previously warm cache went cold after a long idle —
  * inferred, providers report no cache state).
  * cache hit = cache_read / (fresh input + cache_read), shown with adaptive
- * precision so 99.98% never rounds into a false 100%. uncached = prompt
+ * precision so 99.98% never rounds into a false 100%. input = prompt
  * tokens billed fresh instead of read from cache, the complement of cache
- * read (cache read + uncached + cache write = ↑ sent): on a warm request
- * only the newly appended content, on a rebuild the re-sent prompt.
+ * read: on a warm request only the newly appended content, on a rebuild
+ * the re-sent prompt.
  *
  * Unit symbols (k, M, %, ¢, s, ms, $), the miss/reqs slash and row labels
  * render in a shade halfway between text.muted and text.base, so they stay
@@ -85,11 +95,11 @@
  * column is sampled once every 2 seconds on the refresh timer.
  *
  * While the newest message streams — the thinking phase included — the
- * last column goes live: ↓ recv, ttft and tok/s update from the streamed
+ * last column goes live: output, ttft and tok/s update from the streamed
  * reasoning/text deltas (tokens estimated as chars / 4, or real partial
  * usage when the provider reports it early), while the input-side cells
- * (↑ sent, cache, miss, uncached, cost) show "…" until the provider
- * reports usage at step end. The epoch and session columns hold confirmed
+ * (input, cache, miss, ↑ sent, cost) show "…" until the provider reports
+ * usage at step end. The epoch and session columns hold confirmed
  * numbers and averages over completed requests ("—" when unavailable).
  *
  * The footer refreshes every 2 seconds. Requires the sidebar to be
@@ -99,7 +109,7 @@
  * palette, or `<leader>z` (the leader is your configured leader key). A
  * reset stores a per-session baseline: the session column becomes a
  * delta from that snapshot, the epoch column restarts with it, and the
- * last/miss/uncached/averages rows only see messages created afterwards.
+ * last/miss/input/averages rows only see messages created afterwards.
  * The baseline is persisted, so it survives a TUI restart; the server
  * session data is never modified.
  */
@@ -562,10 +572,10 @@ function TokenFooter(props: {
     const msgCacheWrite = msgSums.cacheWrite
     const msgCost = msgSums.cost
 
-    // Billing-side totals: ↑ sent = fresh input + cache read + cache
-    // write, ↓ recv = output + reasoning, so headline numbers cover ALL
-    // tokens. A reset subtracts its snapshot, so the session column
-    // counts from the reset instead of the whole session.
+    // Billing-side totals: input = fresh input, output = output +
+    // reasoning, ↑ sent = input + cache read + cache write, so headline
+    // numbers cover ALL tokens. A reset subtracts its snapshot, so the
+    // session column counts from the reset instead of the whole session.
     const since = (current: number, was: number | undefined) =>
       Math.max(0, current - (was ?? 0))
     const totalCacheRead =
@@ -876,26 +886,24 @@ function TokenFooter(props: {
             ? "YES"
             : "—"
 
-    // Rows are grouped by what they describe: traffic totals, the
-    // composition of ↑ sent, the cache outcome, money, then latency. The
-    // composition follows ↑ sent = uncached + cache read + cache write, so
-    // the fresh side sits right next to the cached side it complements and
-    // stays visible near the top.
+    // Rows are grouped by meaning: the priced buckets the provider
+    // reports (input, output, cache read, then cache write when it was
+    // written), the cache outcome derived from them (cache hit,
+    // miss/reqs), the billed cost, the overall sent total, then latency.
+    // ↑ sent = input + cache read + cache write, so it is a quantity
+    // total rather than a price bucket and stays out of the priced block.
     const list = [
-      mk("↑ sent", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
       mk(
-        "↓ recv",
-        s.pending ? (s.liveOut != null ? fmt(s.liveOut) : undefined) : fmt(s.lastOut),
-        fmt(e.out),
-        fmt(s.totalOut),
-      ),
-      // Token side of the cache split: prompt billed fresh instead of read
-      // from cache, the complement of the cache read row.
-      mk(
-        "uncached",
+        "input",
         s.pending ? undefined : fmt(s.lastFresh),
         fmt(e.fresh),
         fmt(s.freshTotal),
+      ),
+      mk(
+        "output",
+        s.pending ? (s.liveOut != null ? fmt(s.liveOut) : undefined) : fmt(s.lastOut),
+        fmt(e.out),
+        fmt(s.totalOut),
       ),
       mk(
         "cache read",
@@ -936,6 +944,7 @@ function TokenFooter(props: {
         fmtCostTotal(s.totalCost),
         "accent",
       ),
+      mk("↑ sent", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
       mk("ttft", fmtMs(lp.ttft), fmtMs(e.ttft), fmtMs(s.avgTtft)),
       mk("tok/s", fmtTpsNum(lp.tps), fmtTpsNum(e.tps), fmtTpsNum(s.avgTps)),
     )
