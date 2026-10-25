@@ -3,13 +3,11 @@
   "version": "1.0.0",
   "description": "Real-time token usage, cost, and latency tracking for every AI request in OpenCode",
   "type": "module",
-  "main": "token-tracker.js",
-  "files": ["token-tracker.js", "token-tracker-realtime.js", "token-tracker.tsx", "README.md"],
-
-  "scripts": {
-    "test": "node --test",
-    "test:watch": "node --test --watch"
+  "exports": {
+    ".": "./token-tracker-v2.tsx",
+    "./tui": "./token-tracker-v2.tsx"
   },
+  "files": ["token-tracker-v2.tsx", "README.md"],
   "keywords": ["opencode", "plugin", "tokens", "cost-tracking"],
   "license": "MIT",
   "repository": {

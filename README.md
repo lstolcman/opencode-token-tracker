@@ -6,147 +6,119 @@ Real-time token usage, cost, and request tracking for every AI request in [OpenC
 
 ---
 
-## 🆕 TUI Version (RECOMMENDED) - `token-tracker.tsx`
+## 🆕 OpenCode 2.x Version (RECOMMENDED) - `token-tracker-v2.tsx`
 
-Displays tokens **directly in the OpenCode sidebar footer**, in real-time during agent execution — **no popups or toasts**.
-
-```
-⏳ last:  in: 70.0k · out: 1.2k · 1 req · $0.04
-📊 total: in: 1.2m  · out: 0.3m · 42 reqs · $1.23
-```
-
-When the agent finishes:
+Port of the TUI version to the OpenCode 2.x CLI plugin API. Renders an
+aligned table in the sidebar footer — one row per metric, in three columns:
+the last request, the current cache epoch, and the whole session:
 
 ```
-✓  last:  in: 70.0k · out: 1.2k · 1 req · $0.04
-📊 total: in: 1.2m  · out: 0.3m · 42 reqs · $1.23
+               last   epoch   session
+↑ sent        70.0k     1.2M     3.4M
+↓ recv         1.2k     0.3M     0.9M
+cache read      50k     800k     2.1M
+cache hit     42.3%    66.7%    61.7%
+miss/reqs        —       1/9     2/12
+uncached        2.1k    39.8k     1.2M
+cost           4.0¢    $0.09    $0.37
+ttft           2.1s     2.0s     2.0s
+tok/s            58       55       55
 ```
 
-**Lines:**
-- `⏳`/`✓` **last** — tokens and cost of the **last request** (useful to see the cost of each individual interaction)
-- `📊` **total** — cumulative for the **entire session** (tokens in, out, request count, and total cost)
+A `cache write` row appears only when cache was written.
 
-**Updates:** every 2 seconds during execution.
+**Columns:**
+- `last` — the most recent request
+- `epoch` — the current warm cache chain. It restarts when a request reuses much less of the previous prompt than a warm request would (under 80%), so it shows what the current cache has cost so far and what it cost to rebuild after a break. Expiry, compaction, eviction and a model switch all break the chain the same way, so the column follows the cache itself instead of guessing causes. The start of the epoch is persisted, so the column keeps showing the current cache's cost even after the break scrolls out of the loaded history. With no break seen since the plugin started (or since a reset) it equals the session column
+- `session` — everything since the reset baseline, whether or not the cache was hit; a session left open for days keeps its full totals here
+
+**Rows:**
+- `↑ sent` — tokens billed input-side: fresh input + cache read + cache write (cached tokens are never re-transmitted, but they are billed)
+- `↓ recv` — tokens received: output + reasoning
+- `cache read` / `cache hit` — cached tokens read, and the hit ratio: cache_read / (fresh input + cache_read). Ratios near 100% keep decimals (e.g. `99.98%`) so integer rounding never fakes a full hit; fresh input can legitimately be tiny (or 0) next to a huge cache read in agentic loops
+- `cost` — the last request in cents (`4.0¢`); the epoch and session totals in dollars with at most three digits: `$0.00`, `$12.0`, `$123`, `$1.2k`, `$12k`
+- `miss/reqs` — `n/m` = cache misses over billed top-level requests (completed assistant messages that reported usage). A miss is a request with zero cache read or one that reused less than 80% of the previous prompt (a rebuild). The session ratio covers every request loaded since the reset baseline, the epoch ratio the requests of the current cache chain (a subset). Counts stay exact below 1000 and compact to k/M above it (`3/12.4k`, `1.2k/3.4k`), dropping decimals as needed so the pair never widens its cell. The last column has no ratio for a single request, so it shows a dim dash (`—`) and a word only when there is something: `cold` (first request), `YES` (it missed) or `EXPIRED` (a warm cache went cold after a long idle — inferred, because providers report no cache state)
+- `uncached` — the token side of the cache split: prompt tokens billed fresh instead of read from cache, the complement of `cache read` (`cache read` + `uncached` + `cache write` = `↑ sent`). On a warm request these are just the newly appended tokens; on a rebuild they are the whole re-sent prompt
+- `ttft` / `tok/s` — time to first token and generation rate; the last column is sampled **once every 2 seconds**, the other columns hold averages
+- Live while streaming — the thinking phase included — `↓ recv`, `ttft` and `tok/s` update from the streamed reasoning/text deltas (tokens estimated as chars / 4, or real partial usage when the provider reports it early); the input-side cells (`↑ sent`, cache, `miss`, `uncached`, `cost`) show `…` until the provider reports usage at step end
+- Session column — taken from the server's session aggregate, the same accounting the status bar shows: it includes subagent usage and hidden overhead (title generation, compaction) that per-message sums miss. `miss/reqs` and the averages are computed over top-level requests
 
 ### Installation
+
+OpenCode 2.x local plugins must live in a **directory**, not a loose file.
 
 **1. Copy the plugin:**
 
 ```bash
-curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.tsx \
-  -o ~/.config/opencode/plugins/token-tracker.tsx
+mkdir -p ~/.config/opencode/plugins/token-tracker
+curl -sL https://github.com/lstolcman/opencode-token-tracker/raw/main/token-tracker-v2.tsx \
+  -o ~/.config/opencode/plugins/token-tracker/tui.tsx
 ```
 
-**2. Register it in `tui.json`** (`~/.config/opencode/tui.json`):
+**2. Register it in `cli.json`** (`~/.config/opencode/cli.json`):
 
 ```json
 {
-  "$schema": "https://opencode.ai/config/tui.json",
-  "plugin": ["./plugins/token-tracker.tsx"]
+  "$schema": "https://opencode.ai/v2/cli.json",
+  "plugins": ["./plugins/token-tracker"]
 }
 ```
 
-**3. Restart OpenCode** and open the sidebar with `Ctrl+X B`.
+**3. Open the sidebar with `Ctrl+X B`.** OpenCode 2.x hot-reloads
+`cli.json` and plugin files — no restart needed.
+
+### Resetting the counters
+
+The table is derived from the session, so there is nothing to clear on the
+server. A reset instead stores a per-session baseline:
+
+- `/tokens-reset`, the **Reset token statistics** command in the palette
+  (`Ctrl+P`), or `<leader>z` (the leader is your configured leader key)
+- the session column becomes a delta from that snapshot, and the epoch
+  column restarts with it
+- `last`, `miss/reqs` and the averages only see requests made after it
+
+The baseline is persisted by OpenCode's plugin storage, so it survives a TUI
+restart. A reset is refused while a response is streaming, so a request never
+straddles the two windows. This is useful when a prompt cache expires
+overnight: reset once, and the hit ratio and miss count describe the working
+window instead of the whole session.
 
 ### Requirements
 
-- OpenCode v1.4.3+
+- OpenCode 2.x
 - Sidebar must be open (`Ctrl+X B`) for the footer to be visible
-
----
-
-## Real-time Toast Version - `token-tracker-realtime.js`
-
-Shows tokens in real-time via a toast notification during agent execution:
-
-```
-⏳ 1.2k tokens · 12 reqs · $0.05
-```
-
-**Installation:**
-
-```bash
-curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker-realtime.js \
-  -o ~/.config/opencode/plugins/token-tracker-realtime.js
-```
-
----
-
-## Classic Version (Toast) - `token-tracker.js`
-
-Shows a toast **after** each request completes:
-
-```
-[tokens] in: 45,231  |  out: 1,204  |  cache↓: 120,000  |  t: 4.2s  |  $0.0032  |  reqs: 3
-```
-
-**Installation:**
-
-```bash
-curl -sL https://github.com/eserete/opencode-token-tracker/raw/main/token-tracker.js \
-  -o ~/.config/opencode/plugins/token-tracker.js
-```
-
----
-
-## Which version should I use?
-
-| Feature | TUI Slot (tsx) | Real-time Toast | Classic |
-|---------|---------------|----------------|---------|
-| **Interface** | Sidebar footer | Toast/popup | Toast/popup |
-| **When it shows** | Always visible | During execution | After completion |
-| **Last vs Total** | ✅ Both | ❌ Total only | ✅ Per request |
-| **Compatibility** | OpenCode v1.4.3+ | All versions | All versions |
-| **Update frequency** | Every 2s | Every 2s | Once |
-
-**Recommendation:** Use **`token-tracker.tsx`** (TUI) — it's the most complete and doesn't interrupt your workflow.
 
 ---
 
 ## Configuration
 
 No additional configuration required beyond the installation steps above.
-
-**Important:** After installing or updating, **restart OpenCode** for the plugin to be reloaded.
-
----
-
-## Field Reference (Classic Version)
-
-| Field | Description |
-|---|---|
-| `in` | Input tokens |
-| `out` | Output tokens |
-| `think` | Reasoning tokens |
-| `cache↓` | Cache read tokens |
-| `cache↑` | Cache write tokens |
-| `t` | Latency in seconds |
-| `$` | Message cost |
-| `session` | Cumulative session cost |
-| model | Provider/model |
-| `reqs` | Number of requests |
-| `finish` | Finish reason |
-| `[+N subagents]` | Aggregated subagents |
+OpenCode 2.x hot-reloads `cli.json` and plugin files — no restart needed.
 
 ---
 
 ## Features
 
 - ✅ **Zero configuration** - copy and it works
-- ✅ **No popups** - integrated display in the OpenCode UI
-- ✅ **Last vs Total** - see the cost of each interaction separately from the session total
-- ✅ **Subagent-aware** - aggregates tokens automatically
-- ✅ **Non-intrusive** - errors are silent
-- ✅ **Real-time** - track usage while the agent works
+- ✅ **Integrated** - aligned table in the sidebar footer, no popups
+- ✅ **Last, epoch and session** - per-request detail, the current warm cache chain, and full session totals
+- ✅ **Cache-aware** - cache read/write, hit ratio, miss tracking, and a lapse (expired cache) label
+- ✅ **Throughput** - TTFT and tok/s per request with averages
+- ✅ **Real-time** - refreshes every 2 seconds, live during generation
+- ✅ **Resettable** - per-session baseline via `/tokens-reset`, persisted across restarts
+- ✅ **Status-bar parity** - totals come from the server's session aggregate
 
 ---
 
 ## Limitations
 
 - Cost accuracy depends on the provider reporting correctly
-- No persistence across sessions
-- TUI version requires the sidebar to be open for the footer to appear
+- Statistics are per session; the reset baseline is persisted, but a new session starts empty
+- The sidebar must be open (`Ctrl+X B`) for the table to appear
 - Updates every 2 seconds (not instantaneous)
+- `miss/reqs` and the averages cover top-level requests; subagent usage is only reflected in the session column via the session aggregate
+- `miss/reqs`, the averages and epoch break detection only see the messages the TUI has loaded (the newest ~20, plus older pages as you scroll), so in a very long chat those counts are a lower bound; token, cost and hit-ratio totals are exact, and the epoch start is persisted once a break is seen
 
 ---
 

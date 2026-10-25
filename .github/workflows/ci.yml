@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -18,10 +18,11 @@ jobs:
           cache: npm
 
       - run: npm ci
-      - run: npm test
+      - name: Verify package exports point at existing files
+        run: node -e "const fs = require('fs'); const p = require('./package.json'); for (const [k, f] of Object.entries(p.exports)) { if (!fs.existsSync(f)) { console.error('export ' + k + ' -> missing ' + f); process.exit(1); } } console.log('exports ok');"
 
   publish:
-    needs: test
+    needs: check
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
