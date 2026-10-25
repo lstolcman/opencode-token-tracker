@@ -18,10 +18,10 @@
  *                  last   epoch   session
  *   ↑ sent        70.0k     1.2M     3.4M
  *   ↓ recv         1.2k     0.3M     0.9M
+ *   uncached        2.1k    39.8k     1.2M
  *   cache read      50k     800k     2.1M
  *   cache hit     42.3%    66.7%    61.7%
  *   miss/reqs        —       1/9     2/12
- *   uncached        2.1k    39.8k     1.2M
  *   cost           4.0¢    $0.09    $0.37
  *   ttft           2.1s     2.0s     2.0s
  *   tok/s            58       55       55
@@ -876,6 +876,11 @@ function TokenFooter(props: {
             ? "YES"
             : "—"
 
+    // Rows are grouped by what they describe: traffic totals, the
+    // composition of ↑ sent, the cache outcome, money, then latency. The
+    // composition follows ↑ sent = uncached + cache read + cache write, so
+    // the fresh side sits right next to the cached side it complements and
+    // stays visible near the top.
     const list = [
       mk("↑ sent", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
       mk(
@@ -883,6 +888,14 @@ function TokenFooter(props: {
         s.pending ? (s.liveOut != null ? fmt(s.liveOut) : undefined) : fmt(s.lastOut),
         fmt(e.out),
         fmt(s.totalOut),
+      ),
+      // Token side of the cache split: prompt billed fresh instead of read
+      // from cache, the complement of the cache read row.
+      mk(
+        "uncached",
+        s.pending ? undefined : fmt(s.lastFresh),
+        fmt(e.fresh),
+        fmt(s.freshTotal),
       ),
       mk(
         "cache read",
@@ -915,14 +928,6 @@ function TokenFooter(props: {
         s.miss,
         !s.pending && s.lastBreak && s.reqCount > 1 ? "warning" : "base",
         missVerdict === "—" ? "soft" : undefined,
-      ),
-      // Token side of the cache split: prompt billed fresh instead of read
-      // from cache, the complement of the cache read row.
-      mk(
-        "uncached",
-        s.pending ? undefined : fmt(s.lastFresh),
-        fmt(e.fresh),
-        fmt(s.freshTotal),
       ),
       mk(
         "cost",

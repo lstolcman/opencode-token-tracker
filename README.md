@@ -16,10 +16,10 @@ the last request, the current cache epoch, and the whole session:
                last   epoch   session
 ↑ sent        70.0k     1.2M     3.4M
 ↓ recv         1.2k     0.3M     0.9M
+uncached        2.1k    39.8k     1.2M
 cache read      50k     800k     2.1M
 cache hit     42.3%    66.7%    61.7%
 miss/reqs        —       1/9     2/12
-uncached        2.1k    39.8k     1.2M
 cost           4.0¢    $0.09    $0.37
 ttft           2.1s     2.0s     2.0s
 tok/s            58       55       55
@@ -35,10 +35,10 @@ A `cache write` row appears only when cache was written.
 **Rows:**
 - `↑ sent` — tokens billed input-side: fresh input + cache read + cache write (cached tokens are never re-transmitted, but they are billed)
 - `↓ recv` — tokens received: output + reasoning
-- `cache read` / `cache hit` — cached tokens read, and the hit ratio: cache_read / (fresh input + cache_read). Ratios near 100% keep decimals (e.g. `99.98%`) so integer rounding never fakes a full hit; fresh input can legitimately be tiny (or 0) next to a huge cache read in agentic loops
-- `cost` — the last request in cents (`4.0¢`); the epoch and session totals in dollars with at most three digits: `$0.00`, `$12.0`, `$123`, `$1.2k`, `$12k`
-- `miss/reqs` — `n/m` = cache misses over billed top-level requests (completed assistant messages that reported usage). A miss is a request with zero cache read or one that reused less than 80% of the previous prompt (a rebuild). The session ratio covers every request loaded since the reset baseline, the epoch ratio the requests of the current cache chain (a subset). Counts stay exact below 1000 and compact to k/M above it (`3/12.4k`, `1.2k/3.4k`), dropping decimals as needed so the pair never widens its cell. The last column has no ratio for a single request, so it shows a dim dash (`—`) and a word only when there is something: `cold` (first request), `YES` (it missed) or `EXPIRED` (a warm cache went cold after a long idle — inferred, because providers report no cache state)
 - `uncached` — the token side of the cache split: prompt tokens billed fresh instead of read from cache, the complement of `cache read` (`cache read` + `uncached` + `cache write` = `↑ sent`). On a warm request these are just the newly appended tokens; on a rebuild they are the whole re-sent prompt
+- `cache read` / `cache hit` — cached tokens read, and the hit ratio: cache_read / (fresh input + cache_read). Ratios near 100% keep decimals (e.g. `99.98%`) so integer rounding never fakes a full hit; fresh input can legitimately be tiny (or 0) next to a huge cache read in agentic loops
+- `miss/reqs` — `n/m` = cache misses over billed top-level requests (completed assistant messages that reported usage). A miss is a request with zero cache read or one that reused less than 80% of the previous prompt (a rebuild). The session ratio covers every request loaded since the reset baseline, the epoch ratio the requests of the current cache chain (a subset). Counts stay exact below 1000 and compact to k/M above it (`3/12.4k`, `1.2k/3.4k`), dropping decimals as needed so the pair never widens its cell. The last column has no ratio for a single request, so it shows a dim dash (`—`) and a word only when there is something: `cold` (first request), `YES` (it missed) or `EXPIRED` (a warm cache went cold after a long idle — inferred, because providers report no cache state)
+- `cost` — the last request in cents (`4.0¢`); the epoch and session totals in dollars with at most three digits: `$0.00`, `$12.0`, `$123`, `$1.2k`, `$12k`
 - `ttft` / `tok/s` — time to first token and generation rate; the last column is sampled **once every 2 seconds**, the other columns hold averages
 - Live while streaming — the thinking phase included — `↓ recv`, `ttft` and `tok/s` update from the streamed reasoning/text deltas (tokens estimated as chars / 4, or real partial usage when the provider reports it early); the input-side cells (`↑ sent`, cache, `miss`, `uncached`, `cost`) show `…` until the provider reports usage at step end
 - Session column — taken from the server's session aggregate, the same accounting the status bar shows: it includes subagent usage and hidden overhead (title generation, compaction) that per-message sums miss. `miss/reqs` and the averages are computed over top-level requests
