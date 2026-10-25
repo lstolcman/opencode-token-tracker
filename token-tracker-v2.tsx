@@ -21,16 +21,17 @@
  *   cache read      50k     800k     2.1M
  *   cache hit     42.3%    66.7%    61.7%
  *   miss/reqs         —      1/9     2/12
- *   cost           4.0¢    $0.09    $0.37
  *   sent total    70.0k     1.2M     3.4M
  *   ttft           2.1s     2.0s     2.0s
  *   tok/s            58       55       55
+ *   cost           4.0¢    $0.09    $0.37
+ *
  * Rows are grouped by meaning: the priced buckets the provider reports
  * (input, output, cache read), the cache outcome derived from them
- * (cache hit, miss/reqs), the billed cost, the overall sent total, then
- * latency. `sent total` is a quantity, not a price bucket — it is the sum
- * of the input-side rows — so it sits below the priced block instead of
- * above it.
+ * (cache hit, miss/reqs), the overall sent total, then latency, with the
+ * billed cost closing the table as the bottom line. `sent total` is a
+ * quantity, not a price bucket — it is the sum of the input-side rows —
+ * so it sits below the priced block instead of above it.
  *
  * A `cache write` row appears only when cache was written.
  *
@@ -888,9 +889,10 @@ function TokenFooter(props: {
     // Rows are grouped by meaning: the priced buckets the provider
     // reports (input, output, cache read, then cache write when it was
     // written), the cache outcome derived from them (cache hit,
-    // miss/reqs), the billed cost, the overall sent total, then latency.
-    // sent total = input + cache read + cache write, so it is a quantity
-    // total rather than a price bucket and stays out of the priced block.
+    // miss/reqs), the overall sent total, then latency. sent total =
+    // input + cache read + cache write, so it is a quantity total rather
+    // than a price bucket and stays out of the priced block. cost closes
+    // the table as the bottom line those rows add up to.
     const list = [
       mk(
         "input",
@@ -936,6 +938,12 @@ function TokenFooter(props: {
         !s.pending && s.lastBreak && s.reqCount > 1 ? "warning" : "base",
         missVerdict === "—" ? "soft" : undefined,
       ),
+      mk("sent total", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
+      mk("ttft", fmtMs(lp.ttft), fmtMs(e.ttft), fmtMs(s.avgTtft)),
+      mk("tok/s", fmtTpsNum(lp.tps), fmtTpsNum(e.tps), fmtTpsNum(s.avgTps)),
+      // The billed cost closes the table: it is the outcome of every row
+      // above it, so it reads as the bottom line rather than as one more
+      // bucket between them.
       mk(
         "cost",
         s.pending ? undefined : fmtCost(s.lastCost),
@@ -943,9 +951,6 @@ function TokenFooter(props: {
         fmtCostTotal(s.totalCost),
         "accent",
       ),
-      mk("sent total", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
-      mk("ttft", fmtMs(lp.ttft), fmtMs(e.ttft), fmtMs(s.avgTtft)),
-      mk("tok/s", fmtTpsNum(lp.tps), fmtTpsNum(e.tps), fmtTpsNum(s.avgTps)),
     )
     return list
   })
