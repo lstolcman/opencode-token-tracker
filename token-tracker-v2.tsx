@@ -16,21 +16,20 @@
  * the last request, the current cache epoch, and the whole session:
  *
  *                  last   epoch   session
- *   input           2.1k    39.8k     1.2M
- *   output          1.2k     0.3M     0.9M
+ *   input          2.1k    39.8k     1.2M
+ *   output         1.2k     0.3M     0.9M
  *   cache read      50k     800k     2.1M
  *   cache hit     42.3%    66.7%    61.7%
- *   miss/reqs        —       1/9     2/12
+ *   miss/reqs         —      1/9     2/12
  *   cost           4.0¢    $0.09    $0.37
- *   ↑ sent        70.0k     1.2M     3.4M
+ *   sent total    70.0k     1.2M     3.4M
  *   ttft           2.1s     2.0s     2.0s
  *   tok/s            58       55       55
- *
  * Rows are grouped by meaning: the priced buckets the provider reports
  * (input, output, cache read), the cache outcome derived from them
  * (cache hit, miss/reqs), the billed cost, the overall sent total, then
- * latency. ↑ sent is a quantity, not a price bucket — it is the sum of
- * the input-side rows — so it sits below the priced block instead of
+ * latency. `sent total` is a quantity, not a price bucket — it is the sum
+ * of the input-side rows — so it sits below the priced block instead of
  * above it.
  *
  * A `cache write` row appears only when cache was written.
@@ -53,9 +52,9 @@
  * reasoning (both billed at the output rate), cache read = prompt tokens
  * served from the provider's cache. cache write is a token count: some
  * providers bill it, others do not, and the cost row already reflects
- * whichever applies. ↑ sent is the quantity total — input + cache read +
- * cache write, every billed input-side token, cached or not — so it is a
- * total, never a rate.
+ * whichever applies. `sent total` is the quantity total — input + cache
+ * read + cache write, every billed input-side token, cached or not — so it
+ * is a total, never a rate.
  *
  * miss/reqs n/m = cache misses over billed top-level requests: completed
  * assistant messages that reported usage (fresh input or cache read). A
@@ -98,7 +97,7 @@
  * last column goes live: output, ttft and tok/s update from the streamed
  * reasoning/text deltas (tokens estimated as chars / 4, or real partial
  * usage when the provider reports it early), while the input-side cells
- * (input, cache, miss, ↑ sent, cost) show "…" until the provider reports
+ * (input, cache, miss, sent total, cost) show "…" until the provider reports
  * usage at step end. The epoch and session columns hold confirmed
  * numbers and averages over completed requests ("—" when unavailable).
  *
@@ -573,7 +572,7 @@ function TokenFooter(props: {
     const msgCost = msgSums.cost
 
     // Billing-side totals: input = fresh input, output = output +
-    // reasoning, ↑ sent = input + cache read + cache write, so headline
+    // reasoning, sent total = input + cache read + cache write, so headline
     // numbers cover ALL tokens. A reset subtracts its snapshot, so the
     // session column counts from the reset instead of the whole session.
     const since = (current: number, was: number | undefined) =>
@@ -890,7 +889,7 @@ function TokenFooter(props: {
     // reports (input, output, cache read, then cache write when it was
     // written), the cache outcome derived from them (cache hit,
     // miss/reqs), the billed cost, the overall sent total, then latency.
-    // ↑ sent = input + cache read + cache write, so it is a quantity
+    // sent total = input + cache read + cache write, so it is a quantity
     // total rather than a price bucket and stays out of the priced block.
     const list = [
       mk(
@@ -944,7 +943,7 @@ function TokenFooter(props: {
         fmtCostTotal(s.totalCost),
         "accent",
       ),
-      mk("↑ sent", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
+      mk("sent total", s.pending ? undefined : fmt(s.lastInp), fmt(e.inp), fmt(s.totalInp)),
       mk("ttft", fmtMs(lp.ttft), fmtMs(e.ttft), fmtMs(s.avgTtft)),
       mk("tok/s", fmtTpsNum(lp.tps), fmtTpsNum(e.tps), fmtTpsNum(s.avgTps)),
     )
