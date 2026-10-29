@@ -41,10 +41,10 @@ write` row appears only when cache was written.
 - `cache read` — prompt tokens served from the provider's cache, billed at its cache-read rate
 - `cache write` — tokens written into the cache, shown only when non-zero. Some providers bill it, others do not; `cost` already reflects whichever applies
 - `cache hit` — the hit ratio: cache_read / (input + cache_read). Ratios near 100% keep decimals (e.g. `99.98%`) so integer rounding never fakes a full hit; input can legitimately be tiny (or 0) next to a huge cache read in agentic loops
-- `miss/reqs` — `n/m` = cache misses over billed top-level requests (completed assistant messages that reported usage). A miss is a request with zero cache read or one that reused less than 80% of the previous prompt (a rebuild). The session ratio covers every request loaded since the reset baseline, the epoch ratio the requests of the current cache chain (a subset). Counts stay exact below 1000 and compact to k/M above it (`3/12.4k`, `1.2k/3.4k`), dropping decimals as needed so the pair never widens its cell. The last column has no ratio for a single request, so it shows a dim dash (`—`) and a word only when there is something: `cold` (first request), `YES` (it missed) or `EXPIRED` (a warm cache went cold after a long idle — inferred, because providers report no cache state)
+- `miss/reqs` — `n/m` = cache misses over billed top-level requests (completed assistant messages that reported usage). A miss is a request with zero cache read or one that reused less than 80% of the previous prompt (a rebuild) within the same model. The session ratio covers every request loaded since the reset baseline, the epoch ratio the requests of the current cache chain (a subset). Counts stay exact below 1000 and compact to k/M above it (`3/12.4k`, `1.2k/3.4k`), dropping decimals as needed so the pair never widens its cell. The last column has no ratio for a single request, so it shows a dim dash (`—`) and a word only when there is something: `cold` (first request), `YES` (it missed), `SWITCH` (the model changed and the new model had no cache for this session) or `EXPIRED` (a warm cache went cold after a long idle — inferred, because providers report no cache state)
 - `sent total` — the overall quantity, not a price bucket: `input` + `cache read` + `cache write`, every billed input-side token, cached or not. Cached tokens are never re-transmitted but they are still billed, so this is the total prompt volume the provider accounted for
 - `ttft` / `tok/s` — time to first token and generation rate; the last column is sampled **once every 2 seconds**, the other columns hold averages
-- `cost` — the bottom line: the last request in cents (`4.0¢`); the epoch and session totals in dollars with at most three digits: `$0.00`, `$12.0`, `$123`, `$1.2k`, `$12k`
+- `cost` — the bottom line, taken from the `cost` OpenCode reports for the request (see [Where `cost` comes from](#where-cost-comes-from)): the last request in cents (`4.0¢`); the epoch and session totals in dollars with at most three digits: `$0.00`, `$12.0`, `$123`, `$1.2k`, `$12k`
 - Live while streaming — the thinking phase included — `output`, `ttft` and `tok/s` update from the streamed reasoning/text deltas (tokens estimated as chars / 4, or real partial usage when the provider reports it early); the input-side cells (`input`, cache, `miss`, `sent total`, `cost`) show `…` until the provider reports usage at step end
 - Session column — taken from the server's session aggregate, the same accounting the status bar shows: it includes subagent usage and hidden overhead (title generation, compaction) that per-message sums miss. `miss/reqs` and the averages are computed over top-level requests
 
@@ -69,6 +69,55 @@ So one request costs:
 ```
 
 `sent total` is deliberately not part of that sum: it is `input + cache read + cache write`, so applying the input rate to it would overcharge every cached token. The `cost` row is the total the provider/OpenCode reports, not a recomputation from these rows.
+
+### Where `cost` comes from
+
+The plugin does not compute or estimate cost. It reads the `cost` field that
+OpenCode stores on every assistant message and on the session aggregate, and
+sums or deltas those values for the `last`, `epoch` and `session` columns. The
+table is exactly as accurate as the server it is connected to.
+
+OpenCode computes that field server-side:
+
+1. If the provider response reports `usage.cost`, that value wins. A reported
+   zero is authoritative, because the endpoint knows about subscriptions,
+   peak pricing, routing, and free tiers that a price sheet cannot.
+2. Otherwise it prices the reported usage with the model's price sheet — the
+   models.dev catalog entry, or the `cost` configured on a custom model — using
+   the formula above. Rates are per million tokens. When the model defines
+   context tiers, the rate whose tier is exceeded by
+   `input + cache read + cache write` is used; otherwise the base rate applies.
+   Cache reads and writes are therefore part of the calculation: a cache-heavy
+   session is cheaper, but it is not free unless the cache rate itself is zero.
+
+`cost` is `0` when:
+
+- the model is free (`-free` models and free tiers report `cost = 0`),
+- the request is covered by an OpenCode Go, Go Plus or Go Teams plan and is
+  within its limits — the endpoint reports `usage.cost = 0` by design. The raw
+  response also carries `opencode.list_cost` (the list value of the request)
+  and `opencode.allowance` (how much it counted toward the monthly limit), but
+  OpenCode stores only `cost` on the message, so this table cannot show those,
+- a custom or local provider has no `cost` configured, so there is no rate to
+  apply.
+
+To price a custom or local model, add its rates per million tokens to the
+model in `opencode.json`:
+
+```json
+"models": {
+  "qwen3.8-flash-next-coder-iq1_m": {
+    "cost": {
+      "input": 0.15,
+      "output": 0.6,
+      "cache": { "read": 0.003, "write": 0 }
+    }
+  }
+}
+```
+
+The `cost` row uses cents for the last request (`4.0¢`) and compact dollars
+for the epoch and session totals (`$0.09`, `$0.37`).
 
 ### Installation
 
@@ -140,7 +189,7 @@ OpenCode 2.x hot-reloads `cli.json` and plugin files — no restart needed.
 
 ## Limitations
 
-- Cost accuracy depends on the provider reporting correctly
+- `cost` is the API's field, not an estimate: it is zero for free models, for OpenCode Go usage within plan limits, and for custom models without a configured price (see [Where `cost` comes from](#where-cost-comes-from))
 - Statistics are per session; the reset baseline is persisted, but a new session starts empty
 - The sidebar must be open (`Ctrl+X B`) for the table to appear
 - Updates every 2 seconds (not instantaneous)

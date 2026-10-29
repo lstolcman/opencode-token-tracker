@@ -626,6 +626,14 @@ function TokenFooter(props: {
           base ? (base.output || 0) + (base.reasoning || 0) : 0,
         )
       : msgOut
+    // Cost is not derived from the token rows: OpenCode stores on each
+    // assistant message the amount the endpoint reported (`usage.cost`, where
+    // a reported zero is authoritative) or, when the endpoint reports none,
+    // the amount it priced from the model's rate sheet (input, output,
+    // cache.read, cache.write). These reads and deltas only aggregate that
+    // field. A zero here means the endpoint reported zero (a free model, or
+    // Go usage within its plan limits) or the model has no configured price —
+    // not that cache reads made the request free.
     const totalCost =
       typeof session?.cost === "number" ? since(session.cost, base?.cost) : msgCost
 
