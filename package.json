@@ -4,7 +4,6 @@
   "description": "Real-time token usage, cost, and latency tracking for every AI request in OpenCode",
   "type": "module",
   "exports": {
-    ".": "./token-tracker-v2.tsx",
     "./tui": "./token-tracker-v2.tsx"
   },
   "files": ["token-tracker-v2.tsx", "README.md"],

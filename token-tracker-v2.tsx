@@ -38,8 +38,14 @@
  * The epoch column answers "what has the current warm cache cost so
  * far?": it accumulates the requests of one unbroken cache chain and
  * restarts whenever a request reuses much less of the previous prompt
- * than a warm request would (under 80%). Expiry, compaction, eviction
- * and a model switch all break the chain the same way, so the column
+ * than a warm request would (under 80%), or whenever the model changes.
+ * A prompt cache belongs to one model — providers keep a cache per model,
+ * and tokenizers measure the same text in different token counts — so a
+ * switch starts a new chain even if the previous model's cache is still
+ * warm. Switching back to a model can still read its earlier cache (the
+ * prefix is unchanged up to the switch), which shows up in `last` and in
+ * the session column, but the epoch column counts from the return. Expiry,
+ * compaction and eviction break the chain the same way, so the column
  * follows the cache itself instead of classifying causes. Its start is
  * a persisted anchor, so the column keeps showing the current cache's
  * cost after the break scrolls out of the loaded history. A session left
@@ -67,8 +73,10 @@
  * pair never widens its cell. The last column has no ratio for a single
  * request, so it shows a dim dash (nothing to report) and a word only when
  * there is something: cold (first request) / YES (the last request missed)
- * / EXPIRED (a previously warm cache went cold after a long idle —
- * inferred, providers report no cache state).
+ * / SWITCH (the model changed and the new one had no cache for this
+ * session) / EXPIRED (a previously warm cache went cold after a long idle —
+ * inferred, providers report no cache state). A switch that reads the
+ * returning model's still-warm cache is a hit, not a miss.
  * cache hit = cache_read / (fresh input + cache_read), shown with adaptive
  * precision so 99.98% never rounds into a false 100%. input = prompt
  * tokens billed fresh instead of read from cache, the complement of cache
@@ -135,6 +143,9 @@ type AssistantMsg = {
   role?: string
   time?: { created?: number; streamed?: number; completed?: number }
   content?: MsgPart[]
+  // The model that served the request. Prompt caches are namespaced by
+  // model, so this is what makes a cache chain model-specific.
+  model?: { id?: string; providerID?: string }
   tokens?: TokenUsage
   cost?: number
   finish?: string
@@ -168,7 +179,9 @@ const CACHE_LAPSE_MS = 10 * 60 * 1000
 // keeps a small shared prefix (the system prompt) still reports a few
 // thousand cached tokens when the conversation part of the cache is
 // gone, which is exactly what a model switch, a compaction or an evicted
-// prefix looks like.
+// prefix looks like. The ratio only compares requests served by the same
+// model: tokenizers differ, and a prompt cache is per model, so a ratio
+// measured across a model switch says nothing (see isModelSwitch).
 const CACHE_BREAK_RATIO = 0.8
 
 const isIncomplete = (m: AssistantMsg | undefined) =>
@@ -330,17 +343,39 @@ function TokenFooter(props: {
   // Warm or rebuilt: how much of the previous prompt this request reused.
   // A warm request re-reads essentially all of it; a break re-sends most
   // of it. Shared by the epoch column, the miss count and the lapse label
-  // so all three agree on what a cache break is.
+  // so all three agree on what a cache break is within one model.
   const isWarmAfter = (prev: AssistantMsg | undefined, cur: AssistantMsg) => {
     const prevPrompt = (prev?.tokens?.input || 0) + (prev?.tokens?.cache?.read || 0)
     if (prevPrompt <= 0) return false
     return (cur.tokens?.cache?.read || 0) >= prevPrompt * CACHE_BREAK_RATIO
   }
+  // Requests are keyed by the model that served them: providers keep a
+  // cache per model, and different tokenizers measure the same prompt in
+  // different token counts. An empty key (an older row without model
+  // metadata) never counts as a switch, so the ratio fallback still works.
+  const modelKey = (m: AssistantMsg | undefined) =>
+    m?.model ? `${m.model.providerID ?? ""}/${m.model.id ?? ""}` : ""
+  const isModelSwitch = (prev: AssistantMsg | undefined, cur: AssistantMsg) => {
+    const before = modelKey(prev)
+    const after = modelKey(cur)
+    return before !== "" && after !== "" && before !== after
+  }
   // A break is only meaningful when there was a warm chain to break: a
   // provider that reports no cache read at all never breaks, it simply
-  // never caches.
+  // never caches. A model switch is never a ratio break: the cache for
+  // the new model is a different cache, so the previous prompt's size is
+  // the wrong denominator. A cold switch is still a miss through
+  // cache.read == 0.
   const isBreakAfter = (prev: AssistantMsg | undefined, cur: AssistantMsg) =>
-    (prev?.tokens?.cache?.read || 0) > 0 && !isWarmAfter(prev, cur)
+    (prev?.tokens?.cache?.read || 0) > 0 &&
+    !isModelSwitch(prev, cur) &&
+    !isWarmAfter(prev, cur)
+  // A request starts a new cache chain when the model changes (a new cache
+  // namespace, even when the previous model's cache is still warm) or when
+  // it rebuilt the same model's warm chain. The epoch column restarts on
+  // either boundary.
+  const startsChain = (prev: AssistantMsg | undefined, cur: AssistantMsg) =>
+    isModelSwitch(prev, cur) || isBreakAfter(prev, cur)
 
   // Two anchors describe the same cache state. The aggregate and the
   // message list update independently, so a freshly reconstructed anchor
@@ -422,21 +457,22 @@ function TokenFooter(props: {
       .sort((a, b) => (a.time?.created ?? 0) - (b.time?.created ?? 0))
   }
 
-  // Move the epoch anchor to the newest cache break. The anchor is a
-  // snapshot of the session aggregate taken just before the request that
-  // rebuilt the cache, so the epoch column is the aggregate delta since
-  // then: exact, independent of how much history the transcript holds,
-  // and persisted like the reset baseline. It is reconstructed as
-  // aggregate minus the requests of the new epoch. The aggregate and the
-  // message list update asynchronously, so a snapshot that would go
-  // negative is skipped and retried, and one for the same break is
-  // refreshed until both sources agree — otherwise a stale aggregate
-  // would freeze the epoch at the whole session.
+  // Move the epoch anchor to the newest chain boundary: a rebuilt cache or
+  // a model switch (a new cache namespace). The anchor is a snapshot of the
+  // session aggregate taken just before the request that started the chain,
+  // so the epoch column is the aggregate delta since then: exact,
+  // independent of how much history the transcript holds, and persisted like
+  // the reset baseline. It is reconstructed as aggregate minus the requests
+  // of the new epoch. The aggregate and the message list update
+  // asynchronously, so a snapshot that would go negative is skipped and
+  // retried, and one for the same break is refreshed until both sources
+  // agree — otherwise a stale aggregate would freeze the epoch at the whole
+  // session.
   const syncEpoch = () => {
     const msgs = requestsOf()
     let start = -1
     for (let i = 1; i < msgs.length; i++) {
-      if (isBreakAfter(msgs[i - 1], msgs[i])) start = i
+      if (startsChain(msgs[i - 1], msgs[i])) start = i
     }
     if (start < 0) return
     const at = msgs[start]?.time?.created ?? 0
@@ -612,12 +648,20 @@ function TokenFooter(props: {
     // The epoch anchor records a rebuild even when the loaded window
     // starts with it and there is no predecessor to compare against. Mark
     // that request explicitly so the session ratio counts the same break
-    // as the epoch ratio.
+    // as the epoch ratio. A model switch also anchors a new chain, but it
+    // is only a miss when the new model served no cache at all: a switch
+    // back to a model whose cache is still warm is a hit, not a rebuild.
     const anchor = epochAnchor()
-    if (anchor) {
-      const anchorIdx = allReqMsgs.findIndex((m) => (m.time?.created ?? 0) === anchor.at)
-      if (anchorIdx >= 0) missFlags[anchorIdx] = true
-    }
+    const anchorIdx = anchor
+      ? allReqMsgs.findIndex((m) => (m.time?.created ?? 0) === anchor.at)
+      : -1
+    const anchorReq = anchorIdx >= 0 ? allReqMsgs[anchorIdx] : undefined
+    const anchorPrev = anchorIdx > 0 ? allReqMsgs[anchorIdx - 1] : undefined
+    const anchorMiss =
+      !anchorReq ||
+      !isModelSwitch(anchorPrev, anchorReq) ||
+      (anchorReq.tokens?.cache?.read || 0) === 0
+    if (anchorIdx >= 0 && anchorMiss) missFlags[anchorIdx] = true
     // A reset hides the requests before its snapshot but not their cache
     // state, so the flags stay anchored on the full list.
     const reqStart = base ? allReqMsgs.findIndex((m) => (m.time?.created ?? 0) > base.at) : 0
@@ -641,6 +685,9 @@ function TokenFooter(props: {
     // report no cache state, so this is an inference, not a provider fact.
     const lastIdx = reqCount > 0 ? reqStart + reqCount - 1 : -1
     const prevMsg = lastIdx > 0 ? allReqMsgs[lastIdx - 1] : undefined
+    // The last request started a new cache namespace: a cold result here is
+    // a model switch, not an expired or evicted cache.
+    const lastSwitch = lastMsg ? isModelSwitch(prevMsg, lastMsg) : false
     const prevEnd = prevMsg?.time?.completed ?? prevMsg?.time?.streamed ?? 0
     const lastEnd = lastMsg?.time?.completed ?? lastMsg?.time?.streamed ?? 0
     const idleMs = lastEnd > prevEnd ? lastEnd - prevEnd : 0
@@ -682,7 +729,7 @@ function TokenFooter(props: {
     const epochMisses = epochMsgs.filter(
       (m, i) =>
         (m.tokens?.cache?.read || 0) === 0 ||
-        (i === 0 && m.time?.created === anchor?.at) ||
+        (i === 0 && m.time?.created === anchor?.at && anchorMiss) ||
         (i > 0 && isBreakAfter(epochMsgs[i - 1], m)),
     ).length
     const sessionAvg = avgPerf(reqMsgs)
@@ -764,6 +811,7 @@ function TokenFooter(props: {
       lastHit,
       totalHit,
       lastBreak,
+      lastSwitch,
       lapsed,
       avgTtft,
       avgTps,
@@ -875,16 +923,19 @@ function TokenFooter(props: {
 
     // Last-column miss verdict: a dim dash, because the row has no ratio
     // for a single request. A word appears only when there is something
-    // to report.
+    // to report. A model switch is the certain cause when it was also the
+    // break: unlike expiry, it is not inferred from an idle gap.
     const missVerdict = s.pending
       ? undefined
-      : s.lapsed
-        ? "EXPIRED"
-        : s.reqCount <= 1
-          ? "cold"
-          : s.lastBreak
-            ? "YES"
-            : "—"
+      : s.lastBreak && s.lastSwitch
+        ? "SWITCH"
+        : s.lapsed
+          ? "EXPIRED"
+          : s.reqCount <= 1
+            ? "cold"
+            : s.lastBreak
+              ? "YES"
+              : "—"
 
     // Rows are grouped by meaning: the priced buckets the provider
     // reports (input, output, cache read, then cache write when it was
