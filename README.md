@@ -122,26 +122,44 @@ for the epoch and session totals (`$0.09`, `$0.37`).
 ### Installation
 
 OpenCode 2.x local plugins must live in a **directory**, not a loose file.
+The directory is discovered automatically; no `cli.json` entry is needed.
 
 **1. Copy the plugin:**
 
+macOS, Linux, or Git Bash:
+
 ```bash
 mkdir -p ~/.config/opencode/plugins/token-tracker
-curl -sL https://github.com/lstolcman/opencode-token-tracker/raw/main/token-tracker-v2.tsx \
+curl -fsSL https://github.com/lstolcman/opencode-token-tracker/raw/main/token-tracker-v2.tsx \
   -o ~/.config/opencode/plugins/token-tracker/tui.tsx
 ```
 
-**2. Register it in `cli.json`** (`~/.config/opencode/cli.json`):
+Windows PowerShell:
 
-```json
-{
-  "$schema": "https://opencode.ai/v2/cli.json",
-  "plugins": ["./plugins/token-tracker"]
-}
+```powershell
+New-Item -ItemType Directory -Force "$env:USERPROFILE\.config\opencode\plugins\token-tracker" | Out-Null
+curl.exe -fsSL https://github.com/lstolcman/opencode-token-tracker/raw/main/token-tracker-v2.tsx `
+  -o "$env:USERPROFILE\.config\opencode\plugins\token-tracker\tui.tsx"
 ```
 
-**3. Open the sidebar with `Ctrl+X B`.** OpenCode 2.x hot-reloads
-`cli.json` and plugin files — no restart needed.
+**2. Open the sidebar with `Ctrl+X B`.** Editing an existing plugin file
+hot-reloads it, but a plugin directory created after the TUI started is not
+picked up by the watcher. If this is the first install, restart the TUI
+once; after that, edits reload without a restart.
+
+**Troubleshooting.** A `Plugin failed: ./plugins/token-tracker` toast means
+the path registered in `cli.json` points at a directory that does not exist.
+Run the command for your shell above (or remove that `cli.json` entry) and
+restart the TUI. To confirm the file landed:
+
+```powershell
+Test-Path "$env:USERPROFILE\.config\opencode\plugins\token-tracker\tui.tsx"
+```
+
+Do not install this plugin with `opencode plugin add
+opencode-token-tracker`: that npm name belongs to a different plugin.
+Install the file from this repository as shown above, or point `cli.json`
+at a checkout of this repository.
 
 ### Resetting the counters
 
